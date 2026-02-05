@@ -1,11 +1,13 @@
-from flask import Flask, request, render_template_string, redirect, url_for
+from flask import Flask, request, render_template_string, url_for, session
 from cnc.formulas import (
     sfm_from_rpm, rpm_from_sfm, ipm_from_ipr, ipr_from_ipm,
     ipm_from_chipload, chipload_from_ipm
 )
-from cnc.data import MATERIALS, INSERTS
+from cnc.data import MATERIALS, INSERTS, MILL_MATERIALS
 
 app = Flask(__name__)
+app.secret_key = "change-me-to-any-random-string"  # required for saving last-used values
+
 
 # ---------- Shared helpers ----------
 def to_float(s: str):
@@ -14,11 +16,13 @@ def to_float(s: str):
         return None
     return float(s)
 
+
 def to_int(s: str):
     s = (s or "").strip()
     if s == "":
         return None
     return int(s)
+
 
 # ---------- Templates ----------
 HOME_TEMPLATE = """
@@ -202,6 +206,8 @@ MILL_TEMPLATE = """
     .row > div { flex:1; }
     .out { margin-top: 14px; padding: 12px; border-radius: 12px; background:#f6f6f6; font-size: 18px; }
     .small { font-size: 13px; color:#444; margin-top: 8px; }
+    .pill { display:inline-block; padding: 6px 10px; border-radius: 999px; background:#eee; font-size: 13px; margin-right: 6px; }
+    .warn { margin-top: 10px; padding: 10px; border-radius: 12px; background:#fff6d6; border:1px solid #ffe08a; }
   </style>
 </head>
 <body>
@@ -214,6 +220,21 @@ MILL_TEMPLATE = """
     <h1>Mill Calculator</h1>
 
     <form method="post">
+      <label>Material</label>
+      <select name="material">
+        <option value="">-- Select --</option>
+        {% for m in mill_materials %}
+          <option value="{{m}}" {% if m == material %}selected{% endif %}>{{m}}</option>
+        {% endfor %}
+      </select>
+
+      {% if mill_rec %}
+        <div class="small">
+          <span class="pill">SFM: {{mill_rec.sfm_min}}–{{mill_rec.sfm_max}}</span>
+          <span class="pill">Chipload: {{mill_rec.chip_min}}–{{mill_rec.chip_max}}</span>
+        </div>
+      {% endif %}
+
       <label>Tool Diameter (inches)</label>
       <input name="diameter" inputmode="decimal" value="{{diameter}}">
 
@@ -254,6 +275,17 @@ MILL_TEMPLATE = """
       </div>
     {% endif %}
 
+    {% if warnings %}
+      <div class="warn">
+        <b>Notes:</b>
+        <ul>
+          {% for w in warnings %}
+            <li>{{w}}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+
     {% if error %}
       <div class="out" style="background:#ffecec;border:1px solid #ffb3b3;">
         <b>Error:</b> {{error}}
@@ -268,10 +300,12 @@ MILL_TEMPLATE = """
 </html>
 """
 
+
 # ---------- Routes ----------
 @app.route("/")
 def home():
     return render_template_string(HOME_TEMPLATE)
+
 
 @app.route("/lathe", methods=["GET", "POST"])
 def lathe():
@@ -287,6 +321,17 @@ def lathe():
     material = ""
     insert = ""
     rec = None
+
+    # Prefill from last values
+    if request.method == "GET":
+        last = session.get("lathe_last", {})
+        diameter = last.get("diameter", "")
+        sfm = last.get("sfm", "")
+        rpm = last.get("rpm", "")
+        ipr = last.get("ipr", "")
+        ipm = last.get("ipm", "")
+        material = last.get("material", "")
+        insert = last.get("insert", "")
 
     if request.method == "POST":
         diameter = request.form.get("diameter", "")
@@ -315,6 +360,7 @@ def lathe():
             if insert in INSERTS:
                 ipr_min = INSERTS[insert]["ipr_min"]
                 ipr_max = INSERTS[insert]["ipr_max"]
+
             if sfm_min is not None or ipr_min is not None:
                 rec = {
                     "sfm_min": sfm_min if sfm_min is not None else "-",
@@ -356,6 +402,17 @@ def lathe():
                 "ipm": f"{f_ipm:.3f}",
             }
 
+            # Save last-used values
+            session["lathe_last"] = {
+                "diameter": diameter,
+                "sfm": sfm,
+                "rpm": rpm,
+                "ipr": ipr,
+                "ipm": ipm,
+                "material": material,
+                "insert": insert,
+            }
+
         except Exception as e:
             error = str(e)
 
@@ -371,10 +428,13 @@ def lathe():
         error=error
     )
 
+
 @app.route("/mill", methods=["GET", "POST"])
 def mill():
     error = None
     results = None
+    warnings = []
+    mill_rec = None
 
     diameter = ""
     sfm = ""
@@ -382,8 +442,21 @@ def mill():
     flutes = "4"
     chipload = ""
     ipm = ""
+    material = ""
+
+    # Prefill from last values
+    if request.method == "GET":
+        last = session.get("mill_last", {})
+        diameter = last.get("diameter", "")
+        sfm = last.get("sfm", "")
+        rpm = last.get("rpm", "")
+        flutes = last.get("flutes", "4")
+        chipload = last.get("chipload", "")
+        ipm = last.get("ipm", "")
+        material = last.get("material", "")
 
     if request.method == "POST":
+        material = request.form.get("material", "")
         diameter = request.form.get("diameter", "")
         sfm = request.form.get("sfm", "")
         rpm = request.form.get("rpm", "")
@@ -404,6 +477,20 @@ def mill():
             if not n_flutes or n_flutes <= 0:
                 raise ValueError("Flutes must be a whole number > 0.")
 
+            # Material recommendations (optional)
+            sfm_min = sfm_max = chip_min = chip_max = None
+            if material in MILL_MATERIALS:
+                sfm_min = MILL_MATERIALS[material]["sfm_min"]
+                sfm_max = MILL_MATERIALS[material]["sfm_max"]
+                chip_min = MILL_MATERIALS[material]["chip_min"]
+                chip_max = MILL_MATERIALS[material]["chip_max"]
+                mill_rec = {
+                    "sfm_min": sfm_min,
+                    "sfm_max": sfm_max,
+                    "chip_min": f"{chip_min:.4f}",
+                    "chip_max": f"{chip_max:.4f}",
+                }
+
             # SFM/RPM resolution
             if r is None and s is None:
                 raise ValueError("Enter either Target SFM or RPM.")
@@ -420,11 +507,32 @@ def mill():
             if c is None:
                 c = chipload_from_ipm(feed_ipm, n_flutes, r)
 
+            # Range warnings
+            if sfm_min is not None and s < sfm_min:
+                warnings.append("SFM is below typical range (may rub).")
+            if sfm_max is not None and s > sfm_max:
+                warnings.append("SFM is above typical range (may wear tool fast).")
+            if chip_min is not None and c < chip_min:
+                warnings.append("Chipload is light (risk of rubbing).")
+            if chip_max is not None and c > chip_max:
+                warnings.append("Chipload is heavy (watch chatter/tool load).")
+
             results = {
                 "rpm": f"{r:.0f}",
                 "sfm": f"{s:.1f}",
                 "chipload": f"{c:.4f}",
                 "ipm": f"{feed_ipm:.2f}",
+            }
+
+            # Save last-used values
+            session["mill_last"] = {
+                "diameter": diameter,
+                "sfm": sfm,
+                "rpm": rpm,
+                "flutes": flutes,
+                "chipload": chipload,
+                "ipm": ipm,
+                "material": material,
             }
 
         except Exception as e:
@@ -434,8 +542,13 @@ def mill():
         MILL_TEMPLATE,
         diameter=diameter, sfm=sfm, rpm=rpm,
         flutes=flutes, chipload=chipload, ipm=ipm,
+        material=material,
+        mill_materials=list(MILL_MATERIALS.keys()),
+        mill_rec=mill_rec,
+        warnings=warnings,
         results=results, error=error
     )
+
 
 if __name__ == "__main__":
     app.run(debug=True)
