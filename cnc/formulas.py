@@ -19,3 +19,16 @@ def ipr_from_ipm(ipm: float, rpm: float) -> float:
     if ipm <= 0 or rpm <= 0:
         raise ValueError("IPM and RPM must be > 0")
     return ipm / rpm
+def rpm_from_sfm_metric(diameter_mm: float, sfm: float) -> float:
+    # If you later want metric support; ignore for now (optional)
+    raise NotImplementedError
+
+def ipm_from_chipload(chipload_in: float, flutes: int, rpm: float) -> float:
+    if chipload_in <= 0 or flutes <= 0 or rpm <= 0:
+        raise ValueError("Chipload, flutes, and RPM must be > 0")
+    return chipload_in * flutes * rpm
+
+def chipload_from_ipm(ipm: float, flutes: int, rpm: float) -> float:
+    if ipm <= 0 or flutes <= 0 or rpm <= 0:
+        raise ValueError("IPM, flutes, and RPM must be > 0")
+    return ipm / (flutes * rpm)
