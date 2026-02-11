@@ -2,11 +2,60 @@
 
 # Basic starter defaults (tune to your shop/machine/rigidity/grade)
 MATERIALS = {
-    "Cast Iron": {"sfm_min": 600, "sfm_max": 1200},
-    "4140": {"sfm_min": 250, "sfm_max": 600},
-    "416 SS": {"sfm_min": 180, "sfm_max": 450},
-    "316 SS": {"sfm_min": 150, "sfm_max": 350},
+    # ----- Carbon & alloy steels -----
+    "1018 Steel": {"sfm_min": 300, "sfm_max": 600},
+    "1020 Steel": {"sfm_min": 300, "sfm_max": 600},
+    "1045 Steel": {"sfm_min": 250, "sfm_max": 550},
+    "A36 Steel": {"sfm_min": 300, "sfm_max": 600},
+
+    "4140 Annealed": {"sfm_min": 250, "sfm_max": 600},
+    "4140 HT": {"sfm_min": 180, "sfm_max": 350},
+    "4340 Steel": {"sfm_min": 180, "sfm_max": 350},
+
+    "8620 Steel": {"sfm_min": 250, "sfm_max": 550},
+
+    # ----- Stainless steels -----
+    "303 Stainless": {"sfm_min": 220, "sfm_max": 500},
+    "304 Stainless": {"sfm_min": 160, "sfm_max": 350},
+    "316 Stainless": {"sfm_min": 150, "sfm_max": 350},
+    "316 SS": {"sfm_min": 150, "sfm_max": 350},  # keep for compatibility
+    "416 Stainless": {"sfm_min": 180, "sfm_max": 450},
+    "420 Stainless": {"sfm_min": 140, "sfm_max": 300},
+    "17-4 PH Stainless": {"sfm_min": 150, "sfm_max": 350},
+
+    # ----- Cast iron -----
+    "Gray Cast Iron": {"sfm_min": 600, "sfm_max": 1200},
+    "Ductile Iron": {"sfm_min": 500, "sfm_max": 1000},
+    "Malleable Iron": {"sfm_min": 500, "sfm_max": 900},
+
+    # ----- Aluminum -----
     "6061 Aluminum": {"sfm_min": 800, "sfm_max": 2000},
+    "6063 Aluminum": {"sfm_min": 900, "sfm_max": 2000},
+    "7075 Aluminum": {"sfm_min": 600, "sfm_max": 1400},
+    "Cast Aluminum": {"sfm_min": 600, "sfm_max": 1200},
+
+    # ----- Copper & brass -----
+    "Brass": {"sfm_min": 500, "sfm_max": 1200},
+    "Bronze": {"sfm_min": 300, "sfm_max": 800},
+    "Copper": {"sfm_min": 300, "sfm_max": 700},
+
+   # ----- Super alloys -----
+    "Inconel 718": {"sfm_min": 60, "sfm_max": 150},
+    "Inconel": {"sfm_min": 60, "sfm_max": 150},
+    "Hastelloy": {"sfm_min": 50, "sfm_max": 140},
+    "Monel": {"sfm_min": 70, "sfm_max": 180},
+    "Monel 400": {"sfm_min": 70, "sfm_max": 180},
+    "Monel K500": {"sfm_min": 60, "sfm_max": 150},
+
+
+    # ----- Titanium -----
+    "Titanium Grade 5": {"sfm_min": 70, "sfm_max": 180},
+    "Titanium": {"sfm_min": 70, "sfm_max": 180},
+
+    # ----- Hardened steels -----
+    "Prehard Steel (~30 HRC)": {"sfm_min": 150, "sfm_max": 300},
+    "Hardened Steel (~50 HRC)": {"sfm_min": 80, "sfm_max": 180},
+    "Hardened Steel (~60 HRC)": {"sfm_min": 50, "sfm_max": 120},
 }
 
 INSERTS = {
@@ -60,3 +109,9 @@ MACHINES = {
         "has_live_tool": False,
     },
 }
+
+
+def ALL_MATERIAL_NAMES():
+    # union of keys across all dictionaries (sorted)
+    return sorted(set(MATERIALS.keys()) | set(MILL_MATERIALS.keys()) | set(DRILL_MATERIALS.keys()))
+
